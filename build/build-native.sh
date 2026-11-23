@@ -110,7 +110,7 @@ linux-*)
     dynamic="$(readelf -d "$out/$lib")"
     echo "$dynamic" | has "\(SONAME\).*\[$lib\]" || fail "its soname is not $lib"
     echo "$dynamic" | has 'SYMBOLIC' || fail "it is not linked -Bsymbolic"
-    needed="$(echo "$dynamic" | grep NEEDED | grep -oE '\[[^]]+\]' | tr -d '[]' | sort | tr '\n' ' ')"
+    needed="$(echo "$dynamic" | grep NEEDED | grep -oE '\[[^]]+\]' | tr -d '[]' | grep -v '^ld-linux' | sort | tr '\n' ' ')"
     [ "$needed" = "libc.so.6 libm.so.6 " ] || [ "$needed" = "libc.so.6 " ] || fail "needs $needed"
     nm -D --defined-only "$out/$lib" | has ' FT_Init_FreeType$' || fail "exports no FT_Init_FreeType"
     ;;
@@ -131,7 +131,7 @@ osx-*)
     [ "$deps" = "/usr/lib/libSystem.B.dylib " ] || fail "links $deps"
     nm -gU "$out/$lib" | has ' _FT_Init_FreeType$' || fail "exports no FT_Init_FreeType"
     ;;
-ios-*)
+ios-arm64 | iossimulator-arm64)
     cp "$built" "$out/$lib"
     platform="$([ "$rid" = ios-arm64 ] && echo 2 || echo 7)"
     platforms="$(otool -l "$out/$lib" | awk '$1 == "platform" { print $2 }' | sort -u | tr '\n' ' ')"
@@ -147,6 +147,7 @@ browser-wasm)
     echo "$symbols" | has ' T FT_Init_FreeType$' || fail "defines no FT_Init_FreeType"
     echo "$symbols" | has ' U __wasm_longjmp$' || fail "its longjmp is not wasm exception handling's"
     ;;
+*) fail "has no checks" ;;
 esac
 
 echo "build-native $rid: built and checked $(find "$out" -type f | sed "s|$repo/||" | tr '\n' ' ')"
