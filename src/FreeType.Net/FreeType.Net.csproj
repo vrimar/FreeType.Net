@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>true</IsPackable>
+    <TargetsForTfmSpecificContentInPackage
+      >$(TargetsForTfmSpecificContentInPackage);PackFreeTypeNatives</TargetsForTfmSpecificContentInPackage>
+    <_FreeTypeHeader>$(MSBuildThisFileDirectory)../../external/freetype/include/freetype/freetype.h</_FreeTypeHeader>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="Exists('$(_FreeTypeHeader)')">
+    <_FreeTypeHeaderText>$([System.IO.File]::ReadAllText('$(_FreeTypeHeader)'))</_FreeTypeHeaderText>
+    <FreeTypeVersion
+      >$([System.Text.RegularExpressions.Regex]::Match($(_FreeTypeHeaderText), '#define FREETYPE_MAJOR\s+(\d+)').Groups[1].Value).$([System.Text.RegularExpressions.Regex]::Match($(_FreeTypeHeaderText), '#define FREETYPE_MINOR\s+(\d+)').Groups[1].Value).$([System.Text.RegularExpressions.Regex]::Match($(_FreeTypeHeaderText), '#define FREETYPE_PATCH\s+(\d+)').Groups[1].Value)</FreeTypeVersion>
+    <Description>.NET bindings for FreeType $(FreeTypeVersion), with FreeType built for win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, iossimulator-arm64 and browser-wasm.</Description>
+    <PackageReleaseNotes>Bundles FreeType $(FreeTypeVersion).</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="FreeTypeVersion" Value="$(FreeTypeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FreeTypeNative Include="$(NativeArtifactsDir)win-x64/freetype_net.dll" PackagePath="runtimes/win-x64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)win-arm64/freetype_net.dll" PackagePath="runtimes/win-arm64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)linux-x64/libfreetype_net.so" PackagePath="runtimes/linux-x64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)linux-arm64/libfreetype_net.so" PackagePath="runtimes/linux-arm64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)osx-x64/libfreetype_net.dylib" PackagePath="runtimes/osx-x64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)osx-arm64/libfreetype_net.dylib" PackagePath="runtimes/osx-arm64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)android-arm64/libfreetype_net.so" PackagePath="runtimes/android-arm64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)android-x64/libfreetype_net.so" PackagePath="runtimes/android-x64/native" />
+    <FreeTypeNative Include="$(NativeArtifactsDir)ios-arm64/libfreetype_net.a" PackagePath="buildTransitive/netstandard1.0/ios-arm64" />
+    <FreeTypeNative
+      Include="$(NativeArtifactsDir)iossimulator-arm64/libfreetype_net.a"
+      PackagePath="buildTransitive/netstandard1.0/iossimulator-arm64"
+    />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None
+      Include="../../build/FreeType.Net.targets"
+      Pack="true"
+      PackagePath="buildTransitive/netstandard1.0"
+      Visible="false"
+    />
+  </ItemGroup>
+
+  <Target Name="RequireFreeTypeSources" BeforeTargets="BeforeBuild" Condition="!Exists('$(_FreeTypeHeader)')">
+    <Error Text="external/freetype is empty: run git submodule update --init." />
+  </Target>
+
+  <!-- A release sets RequireAllNatives, so a package missing a platform never ships; a local pack carries what it has. -->
+  <Target Name="PackFreeTypeNatives">
+    <ItemGroup>
+      <_FreeTypeWasm Include="$(NativeArtifactsDir)browser-wasm/**/freetype_net.a" />
+      <_MissingFreeTypeNative Include="@(FreeTypeNative)" Condition="!Exists('%(Identity)')" />
+      <_MissingFreeTypeNative
+        Include="$(NativeArtifactsDir)browser-wasm/&lt;emscripten version&gt;/freetype_net.a"
+        Condition="'@(_FreeTypeWasm)' == ''"
+      />
+      <TfmSpecificPackageFile Include="@(FreeTypeNative)" Condition="Exists('%(Identity)')" />
+      <TfmSpecificPackageFile
+        Include="@(_FreeTypeWasm)"
+        PackagePath="buildTransitive/netstandard1.0/browser-wasm/"
+      />
+    </ItemGroup>
+    <Error
+      Condition="'@(_FreeTypeWasm->Count())' > 1"
+      Text="FreeType.Net carries one browser archive, but artifacts/native/browser-wasm holds @(_FreeTypeWasm->Count()): remove all but the current emscripten's."
+    />
+    <Error
+      Condition="'$(RequireAllNatives)' == 'true' and '@(_MissingFreeTypeNative)' != ''"
+      Text="FreeType.Net would ship without @(_MissingFreeTypeNative, ', ')."
+    />
+    <Warning
+      Code="FTNET001"
+      Condition="'$(RequireAllNatives)' != 'true' and '@(_MissingFreeTypeNative)' != ''"
+      Text="FreeType.Net ships without @(_MissingFreeTypeNative, ', ')."
+    />
+  </Target>
+</Project>

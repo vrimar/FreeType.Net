@@ -1,0 +1,7 @@
+*
+!*/
+!*.cs
+bin/
+obj/
+artifacts/
+external/

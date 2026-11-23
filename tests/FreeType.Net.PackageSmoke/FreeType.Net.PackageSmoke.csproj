@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FreeType.Net" Version="$(FreeTypeNetVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../Fonts/NotoSans-Subset.ttf" LogicalName="NotoSans-Subset.ttf" />
+  </ItemGroup>
+
+  <!-- Restore keeps a version this project's package folder already holds, so a new pack at the same version would never arrive. -->
+  <Target Name="ForgetPackedFreeTypeNet" BeforeTargets="Restore">
+    <RemoveDir Directories="$(MSBuildProjectDirectory)/obj/packages/freetype.net" />
+  </Target>
+</Project>

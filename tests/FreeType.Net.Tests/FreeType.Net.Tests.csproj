@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <_FreeTypeNativeFile Condition="$([MSBuild]::IsOSPlatform('Windows'))">freetype_net.dll</_FreeTypeNativeFile>
+    <_FreeTypeNativeFile Condition="$([MSBuild]::IsOSPlatform('OSX'))">libfreetype_net.dylib</_FreeTypeNativeFile>
+    <_FreeTypeNativeFile Condition="'$(_FreeTypeNativeFile)' == ''">libfreetype_net.so</_FreeTypeNativeFile>
+    <_FreeTypeNative>$(NativeArtifactsDir)$(NETCoreSdkRuntimeIdentifier)/$(_FreeTypeNativeFile)</_FreeTypeNative>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeType.Net/FreeType.Net.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None
+      Include="../Fonts/*.ttf"
+      Link="Fonts/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest"
+    />
+    <None
+      Include="$(_FreeTypeNative)"
+      Condition="Exists('$(_FreeTypeNative)')"
+      CopyToOutputDirectory="PreserveNewest"
+      Visible="false"
+    />
+  </ItemGroup>
+
+  <Target Name="RequireFreeTypeNative" BeforeTargets="BeforeBuild" Condition="!Exists('$(_FreeTypeNative)')">
+    <Error
+      Text="No FreeType for $(NETCoreSdkRuntimeIdentifier) at $(_FreeTypeNative): run build/build-native.sh $(NETCoreSdkRuntimeIdentifier)."
+    />
+  </Target>
+</Project>

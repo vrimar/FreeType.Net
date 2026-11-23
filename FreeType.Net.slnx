@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FreeType.Net/FreeType.Net.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FreeType.Net.Tests/FreeType.Net.Tests.csproj" />
+  </Folder>
+</Solution>

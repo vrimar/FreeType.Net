@@ -1,0 +1,119 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      version:
+        description: Package version; empty packs VersionPrefix with a ci suffix
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  native:
+    uses: ./.github/workflows/native.yml
+
+  # Each desktop library is tested on its own OS and arch, where a struct laid out for the wrong C long shows.
+  test:
+    name: test (${{ matrix.rid }})
+    needs: native
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64, runner: windows-2025 }
+          - { rid: win-arm64, runner: windows-11-arm }
+          - { rid: linux-x64, runner: ubuntu-24.04 }
+          - { rid: linux-arm64, runner: ubuntu-24.04-arm }
+          - { rid: osx-x64, runner: macos-15-intel }
+          - { rid: osx-arm64, runner: macos-15 }
+    env:
+      DOTNET_NOLOGO: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: native-${{ matrix.rid }}
+          path: artifacts/native/${{ matrix.rid }}
+
+      - run: dotnet build FreeType.Net.slnx -c Release
+
+      - run: dotnet run --project tests/FreeType.Net.Tests -c Release --no-build
+
+  package:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Format
+        run: |
+          dotnet tool restore
+          dotnet csharpier check .
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: artifacts/downloads
+
+      - name: Lay the natives out by RID
+        run: |
+          mkdir -p artifacts/native
+          for artifact in artifacts/downloads/native-*; do
+            mv "$artifact" "artifacts/native/${artifact#artifacts/downloads/native-}"
+          done
+
+      - name: Version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION" ]; then
+            echo "VERSION_ARGS=-p:Version=$VERSION" >> "$GITHUB_ENV"
+          else
+            echo "VERSION_ARGS=-p:VersionSuffix=ci.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          fi
+
+      - run: dotnet pack src/FreeType.Net -c Release -o artifacts/packages -p:RequireAllNatives=true "$VERSION_ARGS"
+
+      - name: Package smoke
+        run: |
+          version=$(dotnet msbuild src/FreeType.Net/FreeType.Net.csproj -getProperty:Version "$VERSION_ARGS")
+          dotnet publish tests/FreeType.Net.PackageSmoke -c Release -r linux-x64 -o artifacts/smoke "-p:FreeTypeNetVersion=$version"
+          artifacts/smoke/FreeType.Net.PackageSmoke
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/packages/
+          retention-days: 7

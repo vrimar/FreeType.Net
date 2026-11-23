@@ -1,0 +1,65 @@
+<Project>
+  <!-- A .targets, so RuntimeIdentifier is set by the time these conditions read it. -->
+  <PropertyGroup>
+    <_FreeTypeNetIsIos
+      Condition="'$(RuntimeIdentifier)' == 'ios-arm64' or '$(RuntimeIdentifier)' == 'iossimulator-arm64'"
+      >true</_FreeTypeNetIsIos>
+  </PropertyGroup>
+
+  <!-- The package carries one browser archive, in a folder named for the emscripten that compiled it. -->
+  <PropertyGroup
+    Condition="'$(RuntimeIdentifier)' == 'browser-wasm' and Exists('$(MSBuildThisFileDirectory)browser-wasm')"
+  >
+    <_FreeTypeNetWasmDirectory
+      >$([System.IO.Directory]::GetDirectories('$(MSBuildThisFileDirectory)browser-wasm'))</_FreeTypeNetWasmDirectory>
+    <_FreeTypeNetWasmEmscripten>$([System.IO.Path]::GetFileName('$(_FreeTypeNetWasmDirectory)'))</_FreeTypeNetWasmEmscripten>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_FreeTypeNetWasmDirectory)' != ''">
+    <NativeFileReference Include="$(_FreeTypeNetWasmDirectory)/freetype_net.a" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_FreeTypeNetIsIos)' == 'true'">
+    <NativeReference Include="$(MSBuildThisFileDirectory)$(RuntimeIdentifier)/libfreetype_net.a">
+      <Kind>Static</Kind>
+    </NativeReference>
+    <DirectPInvoke Include="freetype_net" />
+  </ItemGroup>
+
+  <Target
+    Name="_FreeTypeNetCheckBrowserLink"
+    BeforeTargets="Build"
+    Condition="'$(RuntimeIdentifier)' == 'browser-wasm'"
+  >
+    <PropertyGroup>
+      <_FreeTypeNetLinkEmscripten
+        >$([System.Text.RegularExpressions.Regex]::Match('$(EmscriptenSdkToolsPath)', 'Emscripten\.(\d+\.\d+\.\d+)\.Sdk').Groups[1].Value)</_FreeTypeNetLinkEmscripten>
+    </PropertyGroup>
+    <Error
+      Code="FTNET002"
+      Condition="'$(_FreeTypeNetWasmEmscripten)' == ''"
+      Text="This FreeType.Net package carries no browser-wasm archive."
+    />
+    <Error
+      Code="FTNET003"
+      Condition="'$(_FreeTypeNetLinkEmscripten)' != '' and '$(_FreeTypeNetLinkEmscripten)' != '$(_FreeTypeNetWasmEmscripten)'"
+      Text="This app links with emscripten $(_FreeTypeNetLinkEmscripten), but FreeType.Net's browser archive was compiled by emscripten $(_FreeTypeNetWasmEmscripten). An archive from another emscripten links cleanly and then traps at runtime, so use a FreeType.Net built with emscripten $(_FreeTypeNetLinkEmscripten)."
+    />
+    <Error
+      Code="FTNET004"
+      Condition="'$(WasmEnableExceptionHandling)' == 'false'"
+      Text="FreeType.Net's browser-wasm archive lowers setjmp to wasm exception handling, which WasmEnableExceptionHandling=false turns off."
+    />
+  </Target>
+
+  <Target
+    Name="_FreeTypeNetWarnIosWithoutNativeAot"
+    BeforeTargets="Build"
+    Condition="'$(_FreeTypeNetIsIos)' == 'true' and ('$(PublishAot)' != 'true' or '$(_IsPublishing)' != 'true')"
+  >
+    <Warning
+      Code="FTNET005"
+      Text="FreeType.Net reaches FreeType on iOS only from a NativeAOT publish (PublishAot=true); any other build throws DllNotFoundException on the first FreeType call."
+    />
+  </Target>
+</Project>
