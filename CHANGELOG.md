@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-11-23
 
 - First release: FreeType 2.13.2 for win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64, android-arm64,
   android-x64, ios-arm64, iossimulator-arm64 and browser-wasm (emscripten 6.0.2, wasm exception handling).
